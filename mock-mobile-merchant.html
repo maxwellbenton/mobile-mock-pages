@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Simulate CSP of merchants -->
+  <!-- <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' 'unsafe-inline' *.mastercard.com *.aexp-static.com *.americanexpress.com *.visa.com *.staticv.me *.discover.com *.discovercard.com; img-src 'self' *.mastercard.com *.aexp-static.com *.americanexpress.com *.visa.com *.staticv.me *.discover.com *.discovercard.com; script-src 'self' 'unsafe-inline' *.mastercard.com *.aexp-static.com *.americanexpress.com *.visa.com *.staticv.me *.discover.com *.discovercard.com unpkg.com; style-src 'self' 'unsafe-inline' *.mastercard.com; connect-src 'self' 'unsafe-inline' *.mastercard.com *.aexp-static.com *.americanexpress.com *.visa.com *.staticv.me *.discover.com *.discovercard.com unpkg.com"> -->
+  <script type="module"
+    src="https://stage.src.mastercard.com/srci/integration/components/src-ui-kit/src-ui-kit.esm.js"></script>
+  <link rel="stylesheet" href="https://stage.src.mastercard.com/srci/integration/components/src-ui-kit/src-ui-kit.css">
+  <script src="https://unpkg.com/jsoneditor@10.0.1/dist/jsoneditor.min.js"></script>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+
+    #ui-section {
+      background-color: lightgray;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-flow: column nowrap;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #notifications {
+      height: 70px;
+      width: 100vw;
+      background-color: antiquewhite;
+      position: absolute;
+      bottom: 0;
+      display: flex;
+      flex-flow: column nowrap;
+      justify-content: center;
+      align-items: center;
+      font-size: xx-large;
+      opacity: 0;
+    }
+  </style>
+  <title>Mock UCS Mobile Merchant</title>
+</head>
+
+<body>
+  <main>
+    <div id="ui-section">
+      <button id="loadStage">Load Stage Lib.js</button>
+      <button id="loadSandbox">Load Sandbox Lib.js</button>
+    </div>
+    <div id="notifications"></div>
+  </main>
+  <script>
+    // Test basic message
+    function testMessage() {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosMessageHandler) {
+        window.webkit.messageHandlers.iosMessageHandler.postMessage({
+          action: 'log',
+          data: 'Button clicked from webpage!'
+        });
+      } else {
+        console.log('iOS message handler not available');
+      }
+    }
+
+    // Test Safari VC launch
+    function launchExternalDCF(redirectURL = 'https://www.apple.com') {
+      document.body.style.backgroundColor = "lightred"
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosMessageHandler) {
+        window.webkit.messageHandlers.iosMessageHandler.postMessage({
+          action: 'launchExternalDCF',
+          data: {
+            redirectURL
+          }
+        });
+      }
+    }
+
+    // Optional: Send a ready message from your page too
+    window.addEventListener('load', function () {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosMessageHandler) {
+        window.webkit.messageHandlers.iosMessageHandler.postMessage({
+          action: 'log',
+          data: 'Local page loaded successfully'
+        });
+      }
+    });
+
+    (async function () {
+      window.webkit.messageHandlers.iosMessageHandler.postMessage({
+        action: 'ready',
+        data: 'WebView loaded successfully'
+      });
+
+      const loadStageButton = document.querySelector("#loadStage")
+      const loadSandboxButton = document.querySelector("#loadSandbox")
+      const uiSection = document.querySelector('#ui-section')
+
+      const cardBrands = ["mastercard", "visa", "discover", "amex"]
+      const initParams = {
+        srcDpaId: "b756a2b0-ef62-4c62-a6de-f72e75ce5f17",
+        cardBrands,
+        dpaLocale: "en_US",
+        dpaData: {
+          dpaName: "Minimum Merchant"
+        },
+        services: ["INLINE_CHECKOUT"]
+      }
+      const checkoutWithCardParams = {
+        srcDigitalCardId: '<src-digital-card-id>',
+        windowRef: "<window-reference>"
+      }
+      const checkoutWithNewCardParams = {
+        encryptedCard: '<encrypted-card>',
+        cardBrand: 'mastercard',
+        windowRef: "<window-reference>"
+      }
+      const encryptCardParams = {
+        primaryAccountNumber: "5555555555554444",
+        panExpirationMonth: "11",
+        panExpirationYear: "23",
+        cardSecurityCode: "123"
+      }
+
+      let maskedCards
+      let timer = 0
+
+      function loadScript(scriptUrl) {
+        const script = document.createElement('script');
+        script.src = scriptUrl;
+        document.body.appendChild(script);
+
+        return new Promise((resolve, reject) => {
+          script.onload = resolve
+          script.onerror = reject
+        });
+      }
+
+      function displayToast(message) {
+        const notifications = document.querySelector('#notifications')
+        notifications.style.opacity = 1
+        notifications.innerText = message
+        const toastInterval = setInterval(() => {
+          notifications.style.opacity = notifications.style.opacity - 0.03
+          if (notifications.style.opacity < 0) clearInterval(toastInterval)
+        }, 33)
+      }
+
+      function sendMessageToiOS(action, data) {
+        try {
+          window.webkit.messageHandlers.postMessage({ action, data })
+        } catch (e) {
+          console.warn('iOS message handler not found')
+          console.error(e)
+          displayToast('iOS message handler not found')
+        }
+      }
+
+      async function start(environment) {
+        displayToast('Loading lib.js')
+        await loadScript(`https://${environment}.src.mastercard.com/srci/integration/2/lib.js`)
+        window.jaqen = new window.Click2Pay({ debug: true })
+        addSrcMark()
+      }
+
+      loadStageButton.addEventListener('click', () => {
+        console.warn('loadStageButton clicked')
+        start('stage')
+      })
+
+      loadSandboxButton.addEventListener('click', () => {
+        console.warn('loadSandboxButton clicked')
+        start('sandbox')
+      })
+
+      async function addSrcMark() {
+        uiSection.innerHTML = ""
+        const srcMark = document.createElement('src-mark')
+        uiSection.appendChild(srcMark)
+        await customElements.whenDefined('src-mark')
+        srcMark.cardBrands = cardBrands.join(',')
+        srcMark.style.pointerEvents = 'none'
+        const embeddedButton = document.createElement('button')
+        embeddedButton.innerText = "INLINE_CHECKOUT"
+
+        embeddedButton.addEventListener('click', async () => {
+          await initialize("INLINE_CHECKOUT")
+          displayGetCardsButton()
+        })
+
+        uiSection.appendChild(embeddedButton)
+      }
+
+      async function initialize(service) {
+        displayToast('Initializing')
+        try {
+          const initResponse = await window.jaqen.init({
+            ...initParams,
+            services: [service]
+          })
+        } catch (e) {
+          console.warn(e)
+        }
+      }
+
+      function displayGetCardsButton() {
+        const cardsButton = document.createElement('button')
+        cardsButton.innerText = "getCards()"
+        uiSection.innerHTML = ""
+        uiSection.appendChild(cardsButton)
+        cardsButton.addEventListener('click', async () => {
+          displayToast('Getting cards')
+          maskedCards = await window.jaqen.getCards() // if recognzied - returns cards, if not, []
+
+          uiSection.innerHTML = ""
+
+          if (maskedCards.length) {
+            console.warn({ maskedCards })
+            displayCardsList()
+            displayEncryptCardButton()
+          } else {
+            displayIdLookupForm()
+          }
+        })
+      }
+
+      async function displayCardsList() {
+        const cardList = document.createElement('src-card-list')
+        uiSection.appendChild(cardList)
+        await customElements.whenDefined('src-card-list')
+        cardList.loadCards(maskedCards)
+        cardList.addEventListener('selectSrcDigitalCardId', async ({ detail }) => {
+          displayCheckoutWithCardButton(detail)
+        })
+      }
+
+      async function displayCheckoutWithCardButton(srcDigitalCardId) {
+        const checkoutButton = document.createElement('button')
+        checkoutButton.innerText = 'Checkout With Card ' + srcDigitalCardId.slice(0, 6)
+        uiSection.innerHTML = ""
+        uiSection.appendChild(checkoutButton)
+        checkoutButton.addEventListener('click', async () => {
+          const card = maskedCards.find(card => {
+            return card.srcDigitalCardId === srcDigitalCardId
+          })
+          console.warn({ card })
+          displayToast(`Checking out with ${card?.paymentCardDescriptor} card`)
+          if (card?.paymentCardDescriptor === 'mastercard') {
+            const dcfURL = new URL("http://127.0.0.1:8081/")
+
+            // const dcfURL = new URL("https://mock-stand-alone-dcf.apps.stl.pcfstage00.mastercard.int")
+            dcfURL.searchParams.set('urlCallback', "https://www.google.com")
+            dcfURL.searchParams.set('ucsCallback', "http://127.0.0.1:8082/")
+            launchExternalDCF(dcfURL.toString())
+            // window.webkit.messageHandlers.iosMessageHandler.postMessage({
+            //   action: 'ready',
+            //   data: 'WebView loaded successfully'
+            // });
+          } else {
+            const dcfIframe = document.createElement('iframe')
+            dcfIframe.style.width = "100%"
+            dcfIframe.style.height = "100%"
+            dcfIframe.style.backgroundColor = "blue"
+            uiSection.innerHTML = ""
+            uiSection.appendChild(dcfIframe)
+            const checkoutResponse = await window.jaqen.checkoutWithCard({
+              ...checkoutWithCardParams,
+              srcDigitalCardId,
+              windowRef: dcfIframe.contentWindow
+            })
+            sendMessageToiOS('checkoutComplete', checkoutResponse)
+          }
+        })
+      }
+
+      function displayEncryptCardButton() {
+        const encryptCardButton = document.createElement('button')
+        uiSection.appendChild(encryptCardButton)
+        encryptCardButton.innerText = "Encrypt New Card"
+        encryptCardButton.addEventListener('click', async () => {
+          const cardData = await window.jaqen.encryptCard(encryptCardParams)
+          displayCheckoutWithNewCardButton(cardData)
+        })
+      }
+
+      async function displayCheckoutWithNewCardButton({ encryptedCard, cardBrand }) {
+        const checkoutButton = document.createElement('button')
+        checkoutButton.innerText = `Checkout With New ${cardBrand.toUpperCase()} Card`
+        uiSection.innerHTML = ""
+        uiSection.appendChild(checkoutButton)
+        checkoutButton.addEventListener('click', async () => {
+          const checkoutResponse = await window.jaqen.checkoutWithNewCard({
+            ...checkoutWithNewCardParams,
+            windowRef: createWindow()
+          })
+          sendMessageToiOS('checkoutComplete', checkoutResponse)
+        })
+      }
+
+      function displayIdLookupForm() {
+        const idLookupInput = document.createElement('input')
+        idLookupInput.placeholder = 'Email'
+        idLookupInput.style.margin = '1em 0'
+        const idLookupButton = document.createElement('button')
+        const authenticateButton = document.createElement('button')
+
+        idLookupButton.innerText = "idLookup() by Email"
+        authenticateButton.innerText = "authenticate() by Email"
+        uiSection.appendChild(idLookupInput)
+        uiSection.appendChild(idLookupButton)
+        uiSection.appendChild(authenticateButton)
+
+        idLookupButton.addEventListener('click', async () => {
+          const email = idLookupInput.value
+          if (email === '') return
+          const idLookupParams = { email }
+          displayToast('Looking up consumer...')
+          const { consumerPresent } = await window.jaqen.idLookup(idLookupParams)
+
+          if (consumerPresent) {
+            displayToast('Initiating validation...')
+            const initiateValidationResponse = await window.jaqen.initiateValidation()
+            displayOTP({ ...initiateValidationResponse })
+          } else {
+            displayEncryptCardButton()
+          }
+        })
+
+        authenticateButton.addEventListener('click', async () => {
+          const email = idLookupInput.value
+          if (email === '') return
+          const authenticateParams = {
+            "accountReference": {
+              "consumerIdentity": {
+                "identityType": "EMAIL_ADDRESS",
+                "identityValue": email,
+                "identityProvider": "SRC"
+              }
+            },
+            "authenticationMethod": {
+              "authenticationMethodType": "FIDO2",
+              "authenticationSubject": "CONSUMER"
+            }
+          }
+
+          const authenticateResponse = await window.jaqen.authenticate(authenticateParams).catch(error => error)
+
+          if (authenticateResponse?.cards?.length) {
+            uiSection.innerHTML = ""
+            displayCardsList(authenticateResponse.cards)
+          } else if (authenticateResponse?.reason === "NOT_AUTHENTICATED") {
+          } else if (Array.isArray(authenticateResponse?.cards)) {
+            uiSection.innerHTML = ""
+            displayEncryptCardButton()
+          } else {
+          }
+        })
+      }
+
+      async function displayOTP({ network, maskedValidationChannel }) {
+        const otpInput = document.createElement('src-otp-input')
+        uiSection.innerHTML = ""
+        uiSection.appendChild(otpInput)
+        await customElements.whenDefined('src-otp-input')
+        otpInput.networkId = network
+        otpInput.maskedIdentityValue = maskedValidationChannel
+        otpInput.cardBrands = cardBrands
+        otpInput.autoSubmit = true
+        otpInput.addEventListener('otpChanged', async ({ detail }) => {
+          displayToast('Validating')
+          const validateParams = { value: detail }
+          window.jaqen.validate(validateParams)
+            .then(cards => {
+              maskedCards = cards
+              uiSection.innerHTML = ""
+              displayCardsList()
+            })
+            .catch(error => {
+              displayToast(error.message)
+            })
+        })
+      }
+    })()
+  </script>
+</body>
+
+</html>
