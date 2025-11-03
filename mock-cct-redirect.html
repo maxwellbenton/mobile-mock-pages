@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html,
+    body {
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-flow: column nowrap;
+      justify-content: center;
+      align-items: center;
+    }
+  </style>
+  <title>Stand-In Stand-Alone DCF</title>
+</head>
+
+<body>
+  <h1>Stand-Alone DCF</h1>
+  <h2>Redirecting in...</h2>
+  <h2 id="countdown">5</h2>
+
+  <script>
+    (function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectParams = {}
+      let ucsRedirect
+      for (const [key, value] of urlParams.entries()) {
+        console.log(`${key}: ${value}`);
+        if (key === 'urlCallback') redirectParams['urlCallback'] = value
+        if (key === 'ucsCallback') ucsRedirect = value
+      }
+      redirectParams['card-id'] = 'abc-123'
+      redirectParams['correlation-id'] = 'correlation-id-123'
+      const encodedParams = btoa(JSON.stringify(redirectParams))
+      let countdown = 5
+      const countdownInterval = setInterval(() => {
+        countdown--
+        document.querySelector("#countdown").innerText = countdown
+        if (countdown === 0) {
+          clearInterval(countdownInterval)
+          if (ucsRedirect) {
+            const redirectURL = new URL(ucsRedirect)
+            redirectURL.searchParams.set('dcfData', encodedParams)
+            window.location.href = redirectURL
+          } else {
+            document.querySelector("#countdown").innerText = "Error: No UCS callback found"
+          }
+        }
+      }, 1000)
+    })()
+  </script>
+</body>
+
+</html>
