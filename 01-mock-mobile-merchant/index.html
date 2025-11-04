@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Simulate CSP of merchants -->
+    <!-- <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' 'unsafe-inline' *.mastercard.com *.aexp-static.com *.americanexpress.com *.visa.com *.staticv.me *.discover.com *.discovercard.com; img-src 'self' *.mastercard.com *.aexp-static.com *.americanexpress.com *.visa.com *.staticv.me *.discover.com *.discovercard.com; script-src 'self' 'unsafe-inline' *.mastercard.com *.aexp-static.com *.americanexpress.com *.visa.com *.staticv.me *.discover.com *.discovercard.com unpkg.com; style-src 'self' 'unsafe-inline' *.mastercard.com; connect-src 'self' 'unsafe-inline' *.mastercard.com *.aexp-static.com *.americanexpress.com *.visa.com *.staticv.me *.discover.com *.discovercard.com unpkg.com"> -->
+    <script
+      type="module"
+      src="https://sandbox.src.mastercard.com/srci/integration/components/src-ui-kit/src-ui-kit.esm.js"
+    ></script>
+    <link
+      rel="stylesheet"
+      href="https://sandbox.src.mastercard.com/srci/integration/components/src-ui-kit/src-ui-kit.css"
+    />
+    <script src="https://unpkg.com/jsoneditor@10.0.1/dist/jsoneditor.min.js"></script>
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-family: Arial, sans-serif;
+        background-color: lightgray;
+      }
+
+      main {
+        display: flex;
+        flex-flow: column nowrap;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #status {
+        position: absolute;
+        top: 15%;
+      }
+
+      #ui-section {
+        width: 100vw;
+        height: calc(100vh - 220px);
+        display: flex;
+        flex-flow: column nowrap;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #notifications {
+        height: 70px;
+        width: 100vw;
+        background-color: antiquewhite;
+        position: absolute;
+        bottom: 0;
+        display: flex;
+        flex-flow: column nowrap;
+        justify-content: center;
+        align-items: center;
+        font-size: xx-large;
+        opacity: 0;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      button {
+        background-color: #4caf50;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 4px;
+        min-width: 50%;
+        margin-bottom: 10px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      .info {
+        background-color: #e7f3ff;
+        border-left: 6px solid #2196f3;
+        margin: 20px 0;
+        padding: 12px;
+      }
+      .log {
+        background-color: #f9f9f9;
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin: 10px;
+        height: 150px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 12px;
+        position: fixed;
+        bottom: 70px;
+        left: 0;
+        right: 0;
+        z-index: 100;
+      }
+    </style>
+    <title>Mock UCS Mobile Merchant</title>
+  </head>
+
+  <body>
+    <main>
+      <h3 id="status"></h3>
+      <div id="ui-section">
+        <button id="loadStage">Load Stage Lib.js</button>
+        <button id="loadSandbox">Load Sandbox Lib.js</button>
+      </div>
+      <div class="log" id="logOutput">
+        <div><strong>Log Output:</strong></div>
+      </div>
+      <div id="notifications"></div>
+    </main>
+    <script>
+      const statusHeading = document.querySelector("#status");
+      const loadStageButton = document.querySelector("#loadStage");
+      const loadSandboxButton = document.querySelector("#loadSandbox");
+      const uiSection = document.querySelector("#ui-section");
+
+      // Handle any JavaScript errors and log them to Android
+      window.addEventListener("error", function (e) {
+        const errorMessage = `JavaScript Error: ${e.message} at ${e.filename}:${e.lineno}`;
+        console.error(errorMessage);
+        logMessage(`❌ ${errorMessage}`);
+
+        if (isAndroidAvailable()) {
+          Android.callAction("log", errorMessage);
+        }
+      });
+
+      function logMessage(message) {
+        console.log("logMessage:", message);
+        const logDiv = document.getElementById("logOutput");
+        const timestamp = new Date().toLocaleTimeString();
+        logDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+      }
+
+      function setLoading(message) {
+        statusHeading.innerText = message;
+      }
+
+      function clearLoading() {
+        statusHeading.innerText = "";
+      }
+
+      function isAndroidAvailable() {
+        return typeof Android !== "undefined";
+      }
+
+      function isIOSAvailable() {
+        return !!(
+          window.webkit &&
+          window.webkit.messageHandlers &&
+          window.webkit.messageHandlers.iosMessageHandler
+        );
+      }
+
+      function launchExternalDCF(data) {
+        console.warn({ data });
+        logMessage(`launchExternalDCF request initiated with ${data}`);
+        
+        document.body.style.backgroundColor = "lightred";
+        switch (true) {
+          case isIOSAvailable():
+            window.webkit.messageHandlers.iosMessageHandler.postMessage({
+              action: "launchExternalDCF",
+              data,
+            });
+            logMessage("✅ Sent external browser launch request to iOS device");
+            break;
+          case isAndroidAvailable():
+            Android.callAction("launchExternalDCF", data);
+            logMessage(
+              "✅ Sent external browser launch request to Android device"
+            );
+            break;
+          default:
+            logMessage(
+              "❌ No mobile device detected. Changing current window location"
+            );
+            // setTimeout(() => (window.location.href = data), 1500);
+        }
+      }
+
+      // Optional: Send a ready message from your page too
+      window.addEventListener("load", function () {
+        logMessage("Page loaded, checking device interface...");
+
+        // Check for success query parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("success") === "true") {
+          logMessage(
+            "Successfully redirected back to merchant after redirects!"
+          );
+          setLoading("✓ Flow complete! ✓");
+          loadStageButton.remove();
+          loadSandboxButton.remove();
+        }
+
+        // Detailed Android WebView compatibility checks
+        const isAndroidWebView =
+          navigator.userAgent.includes("Android") &&
+          navigator.userAgent.includes("wv");
+        const chromeVersion = navigator.userAgent.match(/Chrome\/([0-9]+)/);
+        const webkitVersion = navigator.userAgent.match(/WebKit\/([0-9]+)/);
+
+        if (isIOSAvailable()) {
+          try {
+            window.webkit.messageHandlers.iosMessageHandler.postMessage({
+              action: "ready",
+              data: "WebView loaded successfully",
+            });
+            logMessage("✅ Sent ready message to iOS");
+          } catch (e) {
+            logMessage(`❌ Failed to send ready message: ${e.message}`);
+          }
+        }
+
+        if (isAndroidAvailable()) {
+          try {
+            Android.callAction("log", "Local page loaded successfully");
+            logMessage("✅ Android interface detected and notified");
+          } catch (e) {
+            logMessage(`❌ Failed to send ready message: ${e.message}`);
+          }
+        }
+      });
+
+      (async function () {
+        const cardBrands = ["mastercard", "visa", "discover", "amex"];
+        const initParams = {
+          srcDpaId: "b756a2b0-ef62-4c62-a6de-f72e75ce5f17",
+          cardBrands,
+          dpaLocale: "en_US",
+          dpaData: {
+            dpaName: "Minimum Merchant",
+          },
+          services: ["INLINE_CHECKOUT"],
+        };
+        const checkoutWithCardParams = {
+          srcDigitalCardId: "<src-digital-card-id>",
+          windowRef: "<window-reference>",
+        };
+        const checkoutWithNewCardParams = {
+          encryptedCard: "<encrypted-card>",
+          cardBrand: "mastercard",
+          windowRef: "<window-reference>",
+        };
+        const encryptCardParams = {
+          primaryAccountNumber: "5555555555554444",
+          panExpirationMonth: "11",
+          panExpirationYear: "23",
+          cardSecurityCode: "123",
+        };
+
+        let maskedCards;
+        let timer = 0;
+
+        function loadScript(scriptUrl) {
+          const script = document.createElement("script");
+          script.src = scriptUrl;
+          document.body.appendChild(script);
+
+          return new Promise((resolve, reject) => {
+            script.onload = resolve;
+            script.onerror = reject;
+          });
+        }
+
+        function sendMessageToiOS(action, data) {
+          try {
+            if (isIOSAvailable()) {
+              window.webkit.messageHandlers.iosMessageHandler.postMessage({
+                action,
+                data,
+              });
+              logMessage(`✅ Sent iOS message: ${action}`);
+            } else {
+              logMessage("❌ iOS message handler not available");
+            }
+          } catch (e) {
+            logMessage(`❌ iOS message failed: ${e.message}`);
+          }
+        }
+
+        async function start(environment) {
+          logMessage("🌐 Loading lib.js...");
+          setLoading("loading...");
+          await loadScript(
+            `https://${environment}.src.mastercard.com/srci/integration/2/lib.js`
+          );
+          window.jaqen = new window.Click2Pay({ debug: true });
+          clearLoading();
+          addSrcMark();
+        }
+
+        loadStageButton.addEventListener("click", () => {
+          loadStageButton.disabled = true;
+          loadStageButton.style.background = "gray";
+          console.warn("loadStageButton clicked");
+          start("stage");
+        });
+
+        loadSandboxButton.addEventListener("click", () => {
+          loadSandboxButton.disabled = true;
+          loadSandboxButton.style.background = "gray";
+          console.warn("loadSandboxButton clicked");
+          start("sandbox");
+        });
+
+        async function addSrcMark() {
+          uiSection.innerHTML = "";
+          const srcMark = document.createElement("src-mark");
+          uiSection.appendChild(srcMark);
+          await customElements.whenDefined("src-mark");
+          srcMark.cardBrands = cardBrands.join(",");
+          srcMark.style.pointerEvents = "none";
+          const embeddedButton = document.createElement("button");
+          embeddedButton.innerText = "INLINE_CHECKOUT";
+
+          embeddedButton.addEventListener("click", async () => {
+            embeddedButton.disabled = true;
+            embeddedButton.style.background = "gray";
+            setLoading("loading...");
+            await initialize("INLINE_CHECKOUT");
+            clearLoading();
+            displayGetCardsButton();
+          });
+
+          uiSection.appendChild(embeddedButton);
+        }
+
+        async function initialize(service) {
+          try {
+            logMessage(`🌐 Calling jaqen.init() with service: ${service}`);
+            setLoading("loading...");
+            const initResponse = await window.jaqen.init({
+              ...initParams,
+              services: [service],
+            });
+            clearLoading();
+            logMessage(
+              `✅ jaqen.init() successful: ${JSON.stringify(initResponse)}`
+            );
+          } catch (e) {
+            console.warn(e);
+            logMessage(`❌ jaqen.init() failed: ${e.message}`);
+          }
+        }
+
+        function displayGetCardsButton() {
+          const cardsButton = document.createElement("button");
+          cardsButton.innerText = "getCards()";
+          uiSection.innerHTML = "";
+          uiSection.appendChild(cardsButton);
+          cardsButton.addEventListener("click", async () => {
+            cardsButton.disabled = true;
+            cardsButton.style.background = "gray";
+            try {
+              logMessage("🌐 Calling jaqen.getCards()");
+              setLoading("loading...");
+              maskedCards = await window.jaqen.getCards(); // if recognzied - returns cards, if not, []
+              clearLoading();
+              logMessage(
+                `✅ jaqen.getCards() successful: ${maskedCards?.length} cards received`
+              );
+              logMessage(
+                `📄 Cards data: ${JSON.stringify(maskedCards, null, 2)}`
+              );
+            } catch (e) {
+              logMessage(`❌ jaqen.getCards() failed: ${e.message}`);
+              maskedCards = [];
+            }
+
+            uiSection.innerHTML = "";
+
+            if (maskedCards.length) {
+              console.warn({ maskedCards });
+              displayCardsList();
+              displayEncryptCardButton();
+            } else {
+              displayIdLookupForm();
+            }
+          });
+        }
+
+        async function displayCardsList() {
+          const cardList = document.createElement("src-card-list");
+          uiSection.appendChild(cardList);
+          await customElements.whenDefined("src-card-list");
+          cardList.displayPreferredCard = true;
+          cardList.loadCards(maskedCards);
+          cardList.addEventListener(
+            "selectSrcDigitalCardId",
+            async ({ detail }) => {
+              displayCheckoutWithCardButton(detail);
+            }
+          );
+        }
+
+        async function displayCheckoutWithCardButton(srcDigitalCardId) {
+          const checkoutButton = document.createElement("button");
+          checkoutButton.innerText =
+            "Checkout With Card " + srcDigitalCardId.slice(0, 6);
+          uiSection.innerHTML = "";
+          uiSection.appendChild(checkoutButton);
+          checkoutButton.addEventListener("click", async () => {
+            checkoutButton.disabled = true;
+            checkoutButton.style.background = "gray";
+            const card = maskedCards.find((card) => {
+              return card.srcDigitalCardId === srcDigitalCardId;
+            });
+            logMessage(
+              `-> Checking out with ${card?.paymentCardDescriptor} card`
+            );
+            setLoading("loading...");
+            if (card?.paymentCardDescriptor === "mastercard") {
+              const dcfURL = new URL("http://10.0.0.29:8081");
+
+              // const dcfURL = new URL("https://mock-stand-alone-dcf.apps.stl.pcfstage00.mastercard.int")
+              dcfURL.searchParams.set(
+                "urlCallback",
+                "http://10.0.0.29:8080/?success=true"
+              );
+              dcfURL.searchParams.set("ucsCallback", "http://10.0.0.29:8082");
+              launchExternalDCF(dcfURL.toString());
+            } else {
+              const dcfIframe = document.createElement("iframe");
+              dcfIframe.style.width = "100%";
+              dcfIframe.style.height = "100%";
+              dcfIframe.style.backgroundColor = "blue";
+              uiSection.innerHTML = "";
+              uiSection.appendChild(dcfIframe);
+              try {
+                logMessage("🌐 Calling jaqen.checkoutWithCard()");
+                const checkoutResponse = await window.jaqen.checkoutWithCard({
+                  ...checkoutWithCardParams,
+                  srcDigitalCardId,
+                  windowRef: dcfIframe.contentWindow,
+                });
+                logMessage(`✅ jaqen.checkoutWithCard() successful`);
+                logMessage(
+                  `📄 Checkout response: ${JSON.stringify(
+                    checkoutResponse,
+                    null,
+                    2
+                  )}`
+                );
+                sendMessageToiOS("checkoutComplete", checkoutResponse);
+              } catch (e) {
+                logMessage(`❌ jaqen.checkoutWithCard() failed: ${e.message}`);
+              }
+            }
+          });
+        }
+
+        function displayEncryptCardButton() {
+          const encryptCardButton = document.createElement("button");
+          uiSection.appendChild(encryptCardButton);
+          encryptCardButton.innerText = "Encrypt New Card";
+          encryptCardButton.addEventListener("click", async () => {
+            encryptCardButton.disabled = true;
+            encryptCardButton.style.background = "gray";
+            try {
+              logMessage("🌐 Calling jaqen.encryptCard()");
+              setLoading("loading...");
+              const cardData = await window.jaqen.encryptCard(
+                encryptCardParams
+              );
+              clearLoading();
+              logMessage(`✅ jaqen.encryptCard() successful`);
+              logMessage(
+                `📄 Encrypted card data: ${JSON.stringify(cardData, null, 2)}`
+              );
+              displayCheckoutWithNewCardButton(cardData);
+            } catch (e) {
+              logMessage(`❌ jaqen.encryptCard() failed: ${e.message}`);
+            }
+          });
+        }
+
+        async function displayCheckoutWithNewCardButton({
+          encryptedCard,
+          cardBrand,
+        }) {
+          const checkoutButton = document.createElement("button");
+          checkoutButton.innerText = `Checkout With New ${cardBrand.toUpperCase()} Card`;
+          uiSection.innerHTML = "";
+          uiSection.appendChild(checkoutButton);
+          checkoutButton.addEventListener("click", async () => {
+            checkoutButton.disabled = true;
+            checkoutButton.style.background = "gray";
+            try {
+              logMessage("🌐 Calling jaqen.checkoutWithNewCard()");
+              setLoading("loading...");
+              const checkoutResponse = await window.jaqen.checkoutWithNewCard({
+                ...checkoutWithNewCardParams,
+                windowRef: createWindow(),
+              });
+              logMessage(`✅ jaqen.checkoutWithNewCard() successful`);
+              logMessage(
+                `📄 Checkout response: ${JSON.stringify(
+                  checkoutResponse,
+                  null,
+                  2
+                )}`
+              );
+              sendMessageToiOS("checkoutComplete", checkoutResponse);
+            } catch (e) {
+              logMessage(`❌ jaqen.checkoutWithNewCard() failed: ${e.message}`);
+            }
+          });
+        }
+
+        function displayIdLookupForm() {
+          const idLookupInput = document.createElement("input");
+          const idLookupButton = document.createElement("button");
+          idLookupInput.placeholder = "Email";
+          idLookupInput.style.margin = "1em 0";
+
+          idLookupButton.innerText = "idLookup() by Email";
+          uiSection.appendChild(idLookupInput);
+          uiSection.appendChild(idLookupButton);
+
+          // const authenticateButton = document.createElement("button");
+          // authenticateButton.innerText = "authenticate() by Email";
+          // uiSection.appendChild(authenticateButton);
+
+          idLookupButton.addEventListener("click", async () => {
+            idLookupButton.disabled = true;
+            idLookupButton.style.background = "gray";
+            const email = idLookupInput.value;
+            if (email === "") return;
+            const idLookupParams = { email };
+            try {
+              logMessage("🌐 Calling jaqen.idLookup()");
+              setLoading("loading...");
+              const { consumerPresent } = await window.jaqen.idLookup(
+                idLookupParams
+              );
+              clearLoading();
+              logMessage(
+                `✅ jaqen.idLookup() successful: consumerPresent=${consumerPresent}`
+              );
+
+              if (consumerPresent) {
+                try {
+                  logMessage("🌐 Calling jaqen.initiateValidation()");
+                  setLoading("loading...");
+                  const initiateValidationResponse =
+                    await window.jaqen.initiateValidation();
+                  clearLoading();
+                  logMessage(`✅ jaqen.initiateValidation() successful`);
+                  logMessage(
+                    `📄 Validation response: ${JSON.stringify(
+                      initiateValidationResponse,
+                      null,
+                      2
+                    )}`
+                  );
+                  displayOTP({ ...initiateValidationResponse });
+                } catch (error) {
+                  logMessage(
+                    `❌ jaqen.initiateValidation() failed: ${
+                      error?.reason || error?.message
+                    }`
+                  );
+                }
+              } else {
+                displayEncryptCardButton();
+              }
+            } catch (e) {
+              logMessage(`❌ jaqen.idLookup() failed: ${e.message}`);
+            }
+          });
+
+          // authenticateButton.addEventListener("click", async () => {
+          //   authenticateButton.disabled = true;
+          //   authenticateButton.style.background = "gray";
+          //   const email = idLookupInput.value;
+          //   if (email === "") return;
+          //   const authenticateParams = {
+          //     accountReference: {
+          //       consumerIdentity: {
+          //         identityType: "EMAIL_ADDRESS",
+          //         identityValue: email,
+          //         identityProvider: "SRC",
+          //       },
+          //     },
+          //     authenticationMethod: {
+          //       authenticationMethodType: "FIDO2",
+          //       authenticationSubject: "CONSUMER",
+          //     },
+          //   };
+
+          //   try {
+          //     logMessage("🌐 Calling jaqen.authenticate()");
+          //     setLoading("loading...");
+          //     const authenticateResponse = await window.jaqen.authenticate(
+          //       authenticateParams
+          //     );
+          //     clearLoading();
+          //     logMessage(`✅ jaqen.authenticate() successful`);
+          //     logMessage(
+          //       `📄 Authenticate response: ${JSON.stringify(
+          //         authenticateResponse,
+          //         null,
+          //         2
+          //       )}`
+          //     );
+
+          //     if (authenticateResponse?.cards?.length) {
+          //       uiSection.innerHTML = "";
+          //       displayCardsList(authenticateResponse.cards);
+          //     } else if (authenticateResponse?.reason === "NOT_AUTHENTICATED") {
+          //       logMessage("❌ Authentication failed: NOT_AUTHENTICATED");
+          //     } else if (Array.isArray(authenticateResponse?.cards)) {
+          //       uiSection.innerHTML = "";
+          //       displayEncryptCardButton();
+          //     } else {
+          //       logMessage("❌ Unexpected authenticate response");
+          //     }
+          //   } catch (error) {
+          //     logMessage(
+          //       `❌ jaqen.authenticate() failed: ${
+          //         error?.reason || error?.message
+          //       }`
+          //     );
+          //   }
+          // });
+        }
+
+        async function displayOTP({ network, maskedValidationChannel }) {
+          if (isAndroidAvailable()) {
+            createFallbackOTPInput(network, maskedValidationChannel);
+          } else {
+            const otpInput = document.createElement("src-otp-input");
+            uiSection.innerHTML = "";
+            uiSection.appendChild(otpInput);
+            await customElements.whenDefined("src-otp-input");
+            otpInput.networkId = network;
+            otpInput.maskedIdentityValue = maskedValidationChannel;
+            otpInput.cardBrands = cardBrands;
+            otpInput.autoSubmit = true;
+            otpInput.addEventListener("otpChanged", async ({ detail }) => {
+              logMessage("🌐 Calling jaqen.validate()");
+              const validateParams = { value: detail };
+              window.jaqen
+                .validate(validateParams)
+                .then((cards) => {
+                  logMessage(
+                    `✅ jaqen.validate() successful: ${cards?.length} cards received`
+                  );
+                  maskedCards = cards;
+                  uiSection.innerHTML = "";
+                  displayCardsList();
+                })
+                .catch((error) => {
+                  logMessage(
+                    `❌ jaqen.validate() failed: ${error?.message || error}`
+                  );
+                });
+            });
+          }
+        }
+
+        function createFallbackOTPInput(network, maskedValidationChannel) {
+          logMessage("🔧 Creating fallback HTML OTP input");
+          uiSection.innerHTML = "";
+
+          const fallbackContainer = document.createElement("div");
+          fallbackContainer.innerHTML = `
+                  <div style="padding: 20px; background: white; border-radius: 8px; margin: 10px;">
+                    <h3>Enter OTP Code</h3>
+                    <p>Network: ${network}</p>
+                    <p>Sent to: ${maskedValidationChannel}</p>
+                    <input type="text" id="fallbackOTP" placeholder="Enter 6-digit code"
+                           style="width: 100%; padding: 10px; font-size: 18px; border: 2px solid #ccc; border-radius: 4px;"
+                           maxlength="6" />
+                    <button id="submitOTP" style="width: 100%; margin-top: 10px; padding: 15px; background: #4caf50; color: white; border: none; border-radius: 4px;">
+                      Submit OTP
+                    </button>
+                  </div>
+                `;
+
+          uiSection.appendChild(fallbackContainer);
+
+          const otpInput = fallbackContainer.querySelector("#fallbackOTP");
+          const submitButton = fallbackContainer.querySelector("#submitOTP");
+
+          otpInput.addEventListener("input", () => {
+            if (otpInput.value.length === 6) {
+              submitButton.style.background = "#45a049";
+            }
+          });
+
+          submitButton.addEventListener("click", () => {
+            if (otpInput.value.length === 6) {
+              logMessage(`🔧 Submitting fallback OTP: ${otpInput.value}`);
+              const validateParams = { value: otpInput.value };
+              logMessage("🌐 Calling jaqen.validate()");
+              setLoading("loading...");
+              window.jaqen
+                .validate(validateParams)
+                .then((cards) => {
+                  clearLoading();
+                  logMessage(
+                    `✅ jaqen.validate() successful: ${cards?.length} cards received`
+                  );
+                  logMessage(
+                    `📄 Validation cards: ${JSON.stringify(cards, null, 2)}`
+                  );
+                  maskedCards = cards;
+                  uiSection.innerHTML = "";
+                  displayCardsList();
+                })
+                .catch((error) => {
+                  clearLoading();
+                  logMessage(
+                    `❌ jaqen.validate() failed: ${error?.message || error}`
+                  );
+                });
+            } else {
+              logMessage("⚠️ Please enter a 6-digit OTP code");
+            }
+          });
+
+          logMessage("✅ Fallback OTP input created successfully");
+        }
+      })();
+    </script>
+  </body>
+</html>

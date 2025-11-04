@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Merchant - Android</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .info {
+            background-color: #e7f3ff;
+            border-left: 6px solid #2196F3;
+            margin: 20px 0;
+            padding: 12px;
+        }
+        .log {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mock Merchant Page - Android</h1>
+        
+        <div class="info">
+            <p><strong>Android WebView Integration Test</strong></p>
+            <p>This page demonstrates communication between the web page and your Android app using the JavaScript bridge.</p>
+        </div>
+
+        <button onclick="testMessage()">Test Message Bridge</button>
+        <button onclick="launchExternalBrowser()">Launch External Browser</button>
+        <button onclick="sendReady()">Send Ready Signal</button>
+        <button onclick="getDeviceInfo()">Get Device Info</button>
+        <button onclick="testComplexData()">Test Complex Data</button>
+
+        <div class="log" id="logOutput">
+            <div><strong>Log Output:</strong></div>
+        </div>
+    </div>
+
+    <script>
+        // Utility function to log messages both to console and display
+        function logMessage(message) {
+            console.log(message);
+            const logDiv = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Check if Android interface is available
+        function isAndroidAvailable() {
+            return typeof Android !== 'undefined';
+        }
+
+        // Test basic message logging
+        function testMessage() {
+            if (isAndroidAvailable()) {
+                Android.callAction('log', 'Button clicked from webpage!');
+                logMessage('✓ Sent log message to Android');
+            } else {
+                logMessage('✗ Android interface not available');
+                console.log('Android message handler not available');
+            }
+        }
+
+        // Test external browser launch (equivalent to Safari launch in iOS)
+        function launchExternalBrowser(redirectURL = 'https://www.google.com') {
+            if (isAndroidAvailable()) {
+                const data = JSON.stringify({
+                    redirectURL,
+                    ucsCallbackURL: 'https://www.apple.com/safari/'
+                });
+                Android.callAction('launchExternalDCF', data);
+                logMessage('✓ Sent external browser launch request');
+            } else {
+                logMessage('✗ Android interface not available');
+            }
+        }
+
+        // Send ready signal
+        function sendReady() {
+            if (isAndroidAvailable()) {
+                Android.callAction('ready');
+                logMessage('✓ Sent ready signal to Android');
+            } else {
+                logMessage('✗ Android interface not available');
+            }
+        }
+
+        // Get device information
+        function getDeviceInfo() {
+            if (isAndroidAvailable()) {
+                const deviceInfo = Android.getDeviceInfo();
+                const appVersion = Android.getAppVersion();
+                logMessage(`✓ Device: ${deviceInfo}, App Version: ${appVersion}`);
+            } else {
+                logMessage('✗ Android interface not available');
+            }
+        }
+
+        // Test complex data exchange
+        function testComplexData() {
+            if (isAndroidAvailable()) {
+                const complexData = {
+                    userId: 12345,
+                    action: 'checkout',
+                    items: [
+                        { id: 1, name: 'Product A', price: 29.99 },
+                        { id: 2, name: 'Product B', price: 19.99 }
+                    ],
+                    total: 49.98,
+                    currency: 'USD',
+                    timestamp: new Date().toISOString()
+                };
+                
+                Android.callAction('launchExternalDCF', JSON.stringify(complexData));
+                logMessage('✓ Sent complex checkout data to Android');
+            } else {
+                logMessage('✗ Android interface not available');
+            }
+        }
+
+        // Send ready message when page loads (equivalent to iOS version)
+        window.addEventListener('load', function() {
+            logMessage('🔄 Page loaded, checking Android interface...');
+            
+            if (isAndroidAvailable()) {
+                Android.callAction('log', 'Local page loaded successfully');
+                logMessage('✓ Android interface detected and notified');
+                
+                // Also send ready signal
+                setTimeout(() => {
+                    Android.callAction('ready');
+                    logMessage('✓ Ready signal sent to Android');
+                }, 500);
+            } else {
+                logMessage('✗ Android interface not detected');
+            }
+        });
+
+        // Handle any JavaScript errors and log them to Android
+        window.addEventListener('error', function(e) {
+            const errorMessage = `JavaScript Error: ${e.message} at ${e.filename}:${e.lineno}`;
+            console.error(errorMessage);
+            logMessage(`✗ ${errorMessage}`);
+            
+            if (isAndroidAvailable()) {
+                Android.callAction('log', errorMessage);
+            }
+        });
+
+        // Optional: Listen for Android messages (if you implement a way to send messages from Android to web)
+        function handleAndroidMessage(message) {
+            logMessage(`📱 Message from Android: ${message}`);
+        }
+    </script>
+</body>
+</html>
