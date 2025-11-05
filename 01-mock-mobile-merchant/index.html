@@ -131,6 +131,12 @@
       <div id="notifications"></div>
     </main>
     <script>
+      // NOTE: Update to whatever local ports you have running
+      // NOTE 2: Android apps don't work with 127.0.0.1/localhost (served via your computer). 
+      // If using http-server or similar, use the second or third IP (served via the network you are on)
+      const dcfSessionURL = "http://10.0.0.29:8081";
+      const ucsSinglePageAppURL = "http://10.0.0.29:8082";
+      const integratorRedirectURL = "http://10.0.0.29:8080";
       const statusHeading = document.querySelector("#status");
       const loadStageButton = document.querySelector("#loadStage");
       const loadSandboxButton = document.querySelector("#loadSandbox");
@@ -178,7 +184,7 @@
       function launchExternalDCF(data) {
         console.warn({ data });
         logMessage(`launchExternalDCF request initiated with ${data}`);
-        
+
         document.body.style.backgroundColor = "lightred";
         switch (true) {
           case isIOSAvailable():
@@ -198,7 +204,7 @@
             logMessage(
               "❌ No mobile device detected. Changing current window location"
             );
-            // setTimeout(() => (window.location.href = data), 1500);
+            setTimeout(() => (window.location.href = data), 1500);
         }
       }
 
@@ -331,6 +337,7 @@
         async function addSrcMark() {
           uiSection.innerHTML = "";
           const srcMark = document.createElement("src-mark");
+          srcMark.style.width = "50%"
           uiSection.appendChild(srcMark);
           await customElements.whenDefined("src-mark");
           srcMark.cardBrands = cardBrands.join(",");
@@ -435,14 +442,19 @@
             );
             setLoading("loading...");
             if (card?.paymentCardDescriptor === "mastercard") {
-              const dcfURL = new URL("http://10.0.0.29:8081");
-
-              // const dcfURL = new URL("https://mock-stand-alone-dcf.apps.stl.pcfstage00.mastercard.int")
-              dcfURL.searchParams.set(
-                "urlCallback",
-                "http://10.0.0.29:8080/?success=true"
+              const dcfURL = new URL(dcfSessionURL);
+              const spaURL = new URL(ucsSinglePageAppURL)
+              spaURL.searchParams.set(
+                "redirectURL",
+                integratorRedirectURL
               );
-              dcfURL.searchParams.set("ucsCallback", "http://10.0.0.29:8082");
+
+              dcfURL.searchParams.set(
+                "redirectURL",
+                spaURL
+              );
+              logMessage("redirect URL: " + dcfURL.toString())
+              console.warn("redirect URL: " + dcfURL.toString())
               launchExternalDCF(dcfURL.toString());
             } else {
               const dcfIframe = document.createElement("iframe");
@@ -542,9 +554,9 @@
           uiSection.appendChild(idLookupInput);
           uiSection.appendChild(idLookupButton);
 
-          // const authenticateButton = document.createElement("button");
-          // authenticateButton.innerText = "authenticate() by Email";
-          // uiSection.appendChild(authenticateButton);
+          const authenticateButton = document.createElement("button");
+          authenticateButton.innerText = "authenticate() by Email";
+          uiSection.appendChild(authenticateButton);
 
           idLookupButton.addEventListener("click", async () => {
             idLookupButton.disabled = true;
@@ -594,60 +606,61 @@
             }
           });
 
-          // authenticateButton.addEventListener("click", async () => {
-          //   authenticateButton.disabled = true;
-          //   authenticateButton.style.background = "gray";
-          //   const email = idLookupInput.value;
-          //   if (email === "") return;
-          //   const authenticateParams = {
-          //     accountReference: {
-          //       consumerIdentity: {
-          //         identityType: "EMAIL_ADDRESS",
-          //         identityValue: email,
-          //         identityProvider: "SRC",
-          //       },
-          //     },
-          //     authenticationMethod: {
-          //       authenticationMethodType: "FIDO2",
-          //       authenticationSubject: "CONSUMER",
-          //     },
-          //   };
+          authenticateButton.addEventListener("click", async () => {
+            authenticateButton.disabled = true;
+            authenticateButton.style.background = "gray";
+            const email = idLookupInput.value;
+            if (email === "") return;
+            const authIframe = document.createElement("iframe");
+            authIframe.style.width = "100%";
+            authIframe.style.height = "100%";
+            authIframe.style.backgroundColor = "blue";
+            uiSection.innerHTML = "";
+            uiSection.appendChild(authIframe);
+            const authenticateParams = {
+              accountReference: {
+                consumerIdentity: {
+                  identityType: "EMAIL_ADDRESS",
+                  identityValue: email,
+                  identityProvider: "SRC",
+                },
+              },
+              windowRef: authIframe.contentWindow,
+            };
 
-          //   try {
-          //     logMessage("🌐 Calling jaqen.authenticate()");
-          //     setLoading("loading...");
-          //     const authenticateResponse = await window.jaqen.authenticate(
-          //       authenticateParams
-          //     );
-          //     clearLoading();
-          //     logMessage(`✅ jaqen.authenticate() successful`);
-          //     logMessage(
-          //       `📄 Authenticate response: ${JSON.stringify(
-          //         authenticateResponse,
-          //         null,
-          //         2
-          //       )}`
-          //     );
-
-          //     if (authenticateResponse?.cards?.length) {
-          //       uiSection.innerHTML = "";
-          //       displayCardsList(authenticateResponse.cards);
-          //     } else if (authenticateResponse?.reason === "NOT_AUTHENTICATED") {
-          //       logMessage("❌ Authentication failed: NOT_AUTHENTICATED");
-          //     } else if (Array.isArray(authenticateResponse?.cards)) {
-          //       uiSection.innerHTML = "";
-          //       displayEncryptCardButton();
-          //     } else {
-          //       logMessage("❌ Unexpected authenticate response");
-          //     }
-          //   } catch (error) {
-          //     logMessage(
-          //       `❌ jaqen.authenticate() failed: ${
-          //         error?.reason || error?.message
-          //       }`
-          //     );
-          //   }
-          // });
+            try {
+              logMessage("🌐 Calling jaqen.authenticate()");
+              const authenticateResponse = await window.jaqen.authenticate(
+                authenticateParams
+              );
+              logMessage(`✅ jaqen.authenticate() successful`);
+              logMessage(
+                `📄 Authenticate response: ${JSON.stringify(
+                  authenticateResponse,
+                  null,
+                  2
+                )}`
+              );
+              uiSection.innerHTML = "";
+              if (authenticateResponse?.cards?.length) {
+                maskedCards = authenticateResponse.cards;
+                displayCardsList();
+              } else if (authenticateResponse?.reason === "NOT_AUTHENTICATED") {
+                logMessage("❌ Authentication failed: NOT_AUTHENTICATED");
+              } else if (Array.isArray(authenticateResponse?.cards)) {
+                displayEncryptCardButton();
+              } else {
+                logMessage("❌ Unexpected authenticate response");
+              }
+            } catch (error) {
+              uiSection.innerHTML = "";
+              logMessage(
+                `❌ jaqen.authenticate() failed: ${
+                  error?.reason || error?.message
+                }`
+              );
+            }
+          });
         }
 
         async function displayOTP({ network, maskedValidationChannel }) {

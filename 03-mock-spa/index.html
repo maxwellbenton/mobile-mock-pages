@@ -1,67 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    html,
-    body {
-      padding: 0;
-      margin: 0;
-      display: flex;
-      flex-flow: column nowrap;
-      justify-content: center;
-      align-items: center;
-    }
-  </style>
-  <title>UCS Spa</title>
-</head>
-
-<body>
-  <h1>UCS Single Page App</h1>
-  <h2>Mocking call to /init</h2>
-  <h2 id="countdown">5</h2>
-  <script>
-    (function () {
-      const urlParams = new URLSearchParams(window.location.search);
-      let dcfData
-      for (const [key, value] of urlParams.entries()) {
-        if (key === 'dcfData') dcfData = JSON.parse(atob(value))
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      html,
+      body {
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-flow: column nowrap;
+        justify-content: center;
+        align-items: center;
       }
+    </style>
+    <title>UCS Spa</title>
+  </head>
 
-      let countdown = 5
-      const countdownInterval = setInterval(() => {
-        countdown--
-        document.querySelector("#countdown").innerText = countdown
-        if (countdown === 0) {
-          clearInterval(countdownInterval)
-          if (dcfData.urlCallback) {
-            const redirectURL = new URL(dcfData.urlCallback)
-            redirectURL.searchParams.set('transactionId', '12345')
-            window.location.href = redirectURL
-          } else {
-            document.querySelector("#countdown").innerText = "Error: No URL callback found"
+  <body>
+    <h1>UCS Single Page App</h1>
+    <h2>Mocking call to /init</h2>
+    <h2 id="countdown">5</h2>
+    <h3 id="params"></h3>
+    <script>
+      (function () {
+        const paramsOutput = document.querySelector('#params')
+        const urlParams = new URLSearchParams(window.location.search);
+        let dcfData, integratorRedirectURL;
+        for (const [key, value] of urlParams.entries()) {
+          console.log('url param found: ' + `${key}: ${value}`);
+          if (key === "dcfData") {
+            dcfData = JSON.parse(atob(value));
+            paramsOutput.innerText = paramsOutput.innerText + "\n " + key + ": " + JSON.stringify(dcfData, null, 2)
+          }
+          if (key === "redirectURL") {
+            integratorRedirectURL = value;
+            paramsOutput.innerText = paramsOutput.innerText + "\n " + key + ": " + JSON.stringify(value, null, 2)
           }
         }
-      }, 1000)
-      // let countdown = 5
-      // const countdownInterval = setInterval(() => {
-      //   countdown--
-      //   document.querySelector("#countdown").innerText = countdown
-      //   if (countdown === 0) {
-      //     clearInterval(countdownInterval)
-      //     if (ucsRedirect) {
-      //       const redirectURL = new URL(ucsRedirect)
-      //       redirectURL.searchParams.set('dcfData', encodedParams)
-      //       window.location.href = redirectURL
-      //     } else {
-      //       document.querySelector("#countdown").innerText = "Error: No UCS callback found"
-      //     }
-      //   }
-      // }, 1000)
-    })()
-  </script>
-</body>
 
+        let countdown = 5;
+        const countdownInterval = setInterval(() => {
+          countdown--;
+          document.querySelector("#countdown").innerText = countdown;
+          if (countdown === 0) {
+            clearInterval(countdownInterval);
+            if (integratorRedirectURL) {
+              const redirectURL = new URL(integratorRedirectURL);
+              redirectURL.searchParams.set("transactionId", "12345");
+              redirectURL.searchParams.set("success", "true");
+              window.location.href = redirectURL.toString();
+            } else {
+              document.querySelector("#countdown").innerText =
+                "Error: No URL callback found";
+            }
+          }
+        }, 1000);
+      })();
+    </script>
+  </body>
 </html>
