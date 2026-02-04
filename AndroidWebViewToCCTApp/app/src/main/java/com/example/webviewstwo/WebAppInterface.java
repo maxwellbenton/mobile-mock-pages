@@ -193,15 +193,22 @@ public class WebAppInterface {
         }
 
         String redirectURL = null;
+        String trimmedData = data.trim();
+        if (trimmedData.startsWith("\"") && trimmedData.endsWith("\"") && trimmedData.length() > 1) {
+            trimmedData = trimmedData.substring(1, trimmedData.length() - 1);
+        }
         
         try {
-            // First, check if data is a valid URL (starts with http:// or https://)
-            if (data.startsWith("http://") || data.startsWith("https://")) {
-                Log.d(TAG, "Data appears to be a direct URL: " + data);
-                redirectURL = data;
+            // First, check if data is a direct URL (with or without scheme)
+            if (trimmedData.startsWith("http://") || trimmedData.startsWith("https://")) {
+                Log.d(TAG, "Data appears to be a direct URL: " + trimmedData);
+                redirectURL = trimmedData;
+            } else if (!trimmedData.startsWith("{")) {
+                Log.d(TAG, "Data appears to be a direct URL without scheme: " + trimmedData);
+                redirectURL = trimmedData;
             } else {
                 // Try to parse as JSON
-                JSONObject jsonData = new JSONObject(data);
+                JSONObject jsonData = new JSONObject(trimmedData);
                 
                 // Check for different possible URL field names
                 if (jsonData.has("redirectURL")) {
@@ -225,10 +232,10 @@ public class WebAppInterface {
             launchChromeCustomTab(redirectURL);
             
         } catch (JSONException e) {
-            Log.e(TAG, "Data is not valid JSON, treating as direct URL: " + data, e);
+            Log.e(TAG, "Data is not valid JSON, treating as direct URL: " + trimmedData, e);
             // If JSON parsing fails, treat the entire data as a URL
-            if (data.startsWith("http://") || data.startsWith("https://")) {
-                launchChromeCustomTab(data);
+            if (trimmedData.startsWith("http://") || trimmedData.startsWith("https://") || !trimmedData.isEmpty()) {
+                launchChromeCustomTab(trimmedData);
             } else {
                 showToast("Error: Invalid data format for external launch");
             }

@@ -162,8 +162,7 @@ public class MainActivity extends AppCompatActivity {
 //        webView.loadUrl("file:///android_asset/mock-merchant-android.html");
         
         // 2. For Android Emulator, try this:
-         webView.loadUrl("http://10.0.2.2:8080");
-        
+        webView.loadUrl("https://three-eyed-merchant.apps.stl.pcfstage00.mastercard.int");
         // 3. For Physical Device, use your computer's IP:
         // webView.loadUrl("http://10.0.0.29:8080");
         
